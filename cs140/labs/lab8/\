@@ -1,0 +1,93 @@
+#include<iostream>
+#include<fstream>
+#include<vector>
+#include<map>
+#include<algorithm>
+using namespace std;
+class name_t{
+	public:
+		name_t(const string& fname, const string& lname);
+		bool operator<(const name_t&)const;
+		void print_name(int length)const;
+
+	private:
+		string firstname;
+		string lastname;
+};
+name_t::name_t(const string& fname, const string& lname){
+	firstname=fname;
+	lastname=lname;
+}
+bool name_t::operator<(const name_t& T )const{
+	if(lastname<T.lastname)
+		return true;
+	else {
+		if(firstname<T.firstname){
+			return true;	
+		}
+		return false;
+	}
+}
+void name_t::print_name(int length)const{
+	int maxlength=0;
+	if(maxlength<firstname.length()+lastname.length()){
+		maxlength=firstname.length()+lastname.length();
+	}
+	length=2+maxlength-firstname.length()-lastname.length();
+	cout<<lastname<<", "<<firstname;
+	for(int i=0;i<length;i++){
+		cout<<".";
+	}
+
+}
+class labscore_t{
+	public:
+		void add_data(int);
+		void set_stats();
+		void print_labscore()const;
+	private:
+		vector<int>score;
+		float mean;
+		int median;
+};
+void labscore_t::add_data(int sscore){
+	score.push_back(sscore);
+}
+void labscore_t::set_stats(){
+	sort(score.begin(),score.end());
+	int N=score.size();
+	int total_score=0;
+	for(int i=0,score.size()>i,i++){
+		total_score=total_score+score[i];
+	}
+	median=N/2-1;
+	mean=total_score/N;
+}
+typedef map<name_t,labscore_t>map_t;
+typedef map_t::iterator map_iterator_t;
+
+class heap_t{
+	public:
+		heap_t();
+		bool empty()const;
+		bool heapify();
+		bool add_data(const  map_iterator_t & );
+		map_iterator_t extract_top();
+	private:
+		struct data_t{
+			bool operator<(const data_t&);
+			map_iterator_t it;
+		}
+		vector<data_t>data;
+};
+
+int main(int argc, char *argv[]){
+	fstream fin(argv[1]);
+	string fname, lname;
+	int score;
+	while(fin>>fname>>lname>>score){
+
+		cout<<fname<<" "<<lname<<" "<<score<<endl;
+	}
+	fin.close();
+}
