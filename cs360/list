@@ -1,0 +1,39 @@
+1. launch chat_room thread
+
+struct room{
+	char *name
+		int num_clients
+		dllist clients
+		dllist messages
+		pthread_mutex_t *lock (mutex server)  ex: pthreaf_mutex_lock(s->lock);
+		pthread_cond * cond (condition variable)	
+}
+
+	---Hold onto struct to tcbs
+	---do lock every time you change room struct
+
+2. set up socket(loop)
+
+	---while accept connection
+	---options
+	---client thread
+
+	struct client{
+		char *name
+		room *ptr
+		int fd
+		file *read
+		condition variable
+	}
+
+3. client/server function
+When there is message in thread
+print it out
+server(){
+
+	while(){
+		for(clients){
+			write_messages();
+		}
+	}
+}

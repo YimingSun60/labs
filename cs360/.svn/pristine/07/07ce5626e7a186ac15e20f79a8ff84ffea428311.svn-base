@@ -1,0 +1,310 @@
+#include <utime.h>
+#include<stdlib.h>
+#include<stdio.h>
+#include<string.h>
+#include<limits.h>
+#include<sys/types.h>
+#include<sys/stat.h>
+#include <dirent.h>
+#include "jrb.h"
+#include "dllist.h"
+#include "fields.h"
+void create(char* name);
+
+
+
+void process_files(char* name,JRB inode,JRB Realpath,int Vcheck){	
+	//printf("%s\n",name);
+	Dllist size;
+	Dllist dir,tmp;
+	dir = new_dllist();
+	inode = make_jrb();
+	Realpath = make_jrb();
+	DIR *a;
+	struct stat buf;
+	struct dirent *rd;
+	char *str;
+	char *path;
+	int check;
+	path = (char*)malloc(1000);
+	int i;
+	i=lstat(realpath(name,path),&buf);
+	if(i == -1){
+		perror(name);
+		exit(1);
+	}
+
+	//For regular file case	
+	if(S_ISREG(buf.st_mode)==1){
+
+		if(jrb_find_str(inode,name)==NULL){
+
+			jrb_insert_str(inode,name,new_jval_i(buf.st_ino));
+
+		}
+		realpath(name,path);
+		jrb_insert_str(Realpath,path,new_jval_s(path));
+		//creat file
+		create(name);
+		if(Vcheck==1){
+			fprintf(stderr,"%s, %d",name,buf.st_size);//output
+		}
+		return;
+	}
+	//for directory case, ignore ./ and ../	
+	if(S_ISDIR(buf.st_mode)==1 && strcmp(name,".") != 0 && strcmp(name, "..") != 0){
+
+		//add inode
+		if(jrb_find_str(inode,name)==NULL){
+
+			jrb_insert_str(inode,name,new_jval_i(buf.st_ino));
+
+		}
+
+		//add realpath
+		realpath(name,path);
+		jrb_insert_str(Realpath,path,new_jval_s(strdup(path)));
+		//create the directory
+		create(name);
+		a = opendir(name);
+		//go through path,if there still have directory, continue read the file and directory , and put the info to a stand output 
+		for(rd=readdir(a);rd!=NULL;rd=readdir(a)){
+			str=(char *)malloc(sizeof(char)*1000);
+			if(strcmp(rd->d_name,".")==0 || strcmp(rd->d_name,"..")==0)
+				continue;
+			sprintf(str,"%s/%s",name,rd->d_name);
+
+			//	printf("%s\n",str);
+			realpath(str,path);
+			check=lstat(path,&buf);
+
+			if(check<0){
+				fprintf(stderr, "error %s\n",str);
+			}
+
+			else{
+				//add realpath
+				realpath(str,path);
+				jrb_insert_str(Realpath,path,new_jval_s(path));
+
+				//add inode
+				if(jrb_find_str(inode,name)==NULL){
+					jrb_insert_str(inode,name,new_jval_i(buf.st_ino));
+				}
+			}
+
+			if(S_ISREG(buf.st_mode)==1){
+				if(Vcheck==1){
+					fprintf(stderr,"%s %d\n",str,buf.st_size);
+				}
+				//output detail
+				create(str);
+			}
+
+			if(S_ISDIR(buf.st_mode)==1){
+				if(Vcheck==1){
+					fprintf(stderr,"DIR %s\n",str);
+				}
+				//output detail
+				dll_append(dir,new_jval_s(strdup(str)));
+			}
+
+			if(S_ISLNK(buf.st_mode)==1){
+				if(Vcheck==1){
+					fprintf(stderr, "It's a softlink %s\n",name);
+				}
+				//output detail
+			}
+
+		}
+		closedir(a);
+
+		dll_traverse(tmp,dir){
+			process_files(tmp->val.s,inode,Realpath,Vcheck);
+			free(tmp->val.s);
+		}
+
+		free_dllist(dir);
+
+	}
+	return;
+
+}
+//do the standard output for directory and file
+//output the stat and name, for file, output the size, and content 
+void create(char *name){
+	struct stat buf;
+	int check,size;
+	FILE *fin;
+	char* buffer;
+	check = lstat(name,&buf);
+
+	buffer = (char*)malloc(sizeof(char)*buf.st_size);
+
+	if(check < 0){
+		fprintf(stderr,"error stat %s\n",name);
+	}
+
+	else{
+		//write the file\directory stat
+		if(fwrite(&buf,sizeof(struct stat),1,stdout) != 1){
+			fprintf(stderr,"error writing %s\n",name);
+		}
+
+		//	fwrite(size,sizeof(int),1,stdout);
+		if(S_ISREG(buf.st_mode)==1){
+
+			//write the file size
+			if(fwrite(&buf.st_size,sizeof(int),1,stdout)!=1){
+				fprintf(stderr,"error writing size %s\n",name);
+			}
+
+			fin = fopen(name,"r");
+
+			if(fin == NULL){
+				fprintf(stderr,"Can't open file %s\n",name);
+				exit(1);
+			}
+			//read the file content
+			if(fread(buffer,buf.st_size,1,fin)!=1){
+				fprintf(stderr,"Can't read content %s\n",name);
+			}
+
+			fclose(fin);
+			//write the file content
+			if(fwrite(buffer,buf.st_size,1,stdout)!=1){
+				fprintf(stderr,"Can't write content %s\n",name);
+			}
+		}
+		printf("%s\n",name);
+		//		size = strlen(name);
+		//		printf("%d\n",size);
+	}
+}
+//read the standard input, and create the path based on standard input
+extract(){
+	struct stat buf;
+	int size;
+	int len;
+	char *content;
+	int i = 0;
+	FILE *fp;
+	char *name;
+	struct utimbuf tim;
+	JRB dir; dir = make_jrb();
+	JRB tmp;
+	JRB node;
+	node = make_jrb();
+	JRB aTime; aTime = make_jrb();
+	JRB mTime; mTime = make_jrb();
+	content = malloc(1000);
+	name = malloc(256);
+	//printf("%d\n",count);
+
+	while(fread(&buf,sizeof(struct stat),1,stdin)) {
+
+		if(S_ISREG(buf.st_mode)){
+			fread(&size,sizeof(int),1,stdin);
+			fread(content,size,1,stdin);
+		}
+				
+		fgets(name,256,stdin);
+		i = strlen(name);
+		//add an empty space, if don't do that, 
+		//the directory I created will have a ? at end of the file name;
+		name[i-1]='\0';
+		tim.actime = buf.st_atime;
+		tim.modtime = buf.st_mtime;
+
+		//check if is linked 
+		int linked = -1;
+
+		tmp = jrb_find_int(node,buf.st_ino);
+		if(tmp == NULL){
+			jrb_insert_int(node,buf.st_ino,new_jval_s(strdup(name)));
+		}
+
+	
+		else if(tmp != NULL && strcmp(strdup(tmp->val.s),strdup(name))!=0){
+			tmp = jrb_find_int(node,buf.st_ino);
+			i = link(tmp->val.s,name); 
+			linked = 1;
+		}
+		//if it's a directory, create directory with 0777 permission
+		if(S_ISDIR(buf.st_mode)){
+			mkdir(name,0777);
+			jrb_insert_str(dir,strdup(name),new_jval_i(buf.st_mode));
+			jrb_insert_str(aTime, strdup(name),new_jval_v(buf.st_atime));
+			jrb_insert_str(mTime, strdup(name),new_jval_v(buf.st_mtime));
+		}
+		//if file not be linked
+		//extract the content
+		//set protection mode and access time
+		else if(S_ISREG(buf.st_mode)&&(linked != 1)){
+			fp = fopen(name,"w");
+			if(fp == NULL){
+				fprintf(stderr, "Error opening file %s\n",name);		
+			}
+			fwrite(content,size,1,fp);
+			fclose(fp);
+			if(chmod(name,buf.st_mode)!=0){
+				fprintf(stderr, "Error changing mode of %s\n",name);
+			}
+			if(utime(name,&tim)!=0){
+				fprintf(stderr, "Error changing time of %s\n",name);
+			}
+		}
+
+	}
+	//set the mode to all directries
+	jrb_traverse(tmp,dir){
+		chmod(tmp->key.s,tmp->val.i);
+	}
+
+	JRB tmp2;
+	//set the accesstime for all direcotries
+	jrb_traverse(tmp, aTime){
+
+		tim.actime = tmp->val.i;
+		tmp2 = jrb_find_str(mTime,tmp->key.s);
+		tim.modtime = tmp2->val.i;
+		if(utime(tmp->key.s, &tim)!= 0){
+			fprintf(stderr,"Error changing time of %s\n",tmp->key.s);
+		}
+		free(tmp->key.s);
+	}
+	jrb_free_tree(dir);
+	return;
+}
+int main(int argc, char** argv){
+	char *flag;
+	JRB inode;
+	JRB Realpath;
+	inode=make_jrb();
+	Realpath=make_jrb();
+	flag = strdup(argv[1]);
+	int Vcheck = 0;
+	if(argc < 2){	
+		exit(1);
+	}
+//check the flag
+	if(strcmp(flag,"c")!=0&&strcmp(flag,"x")!=0&&strcmp(flag,"cv")!=0&&strcmp(flag,"xv")!=0){
+		exit(1);
+	}
+
+	if(flag[0]=='c'){
+		int i;
+		for(i=2; i<argc; i++){
+			process_files(argv[i],inode,Realpath,Vcheck);
+		}
+	}
+//check if there is a v flag
+	if(strlen(flag)>1){
+		Vcheck = 1;
+	}
+
+	if(flag[0]=='x'){
+		extract();
+	}
+	return 0;
+}

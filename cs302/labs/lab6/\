@@ -1,0 +1,224 @@
+#include<iostream>
+#include<vector>
+#include<fstream>
+#include<climits>
+using namespace std;
+class matrix {
+	public:
+		void assign(int n_Nrows,int n_Ncols){
+			Nrows= n_Nrows;
+			Ncols= n_Ncols;
+
+			buf = new int [Nrows*Ncols];
+		}
+		~matrix(){
+			delete[]buf;
+		}
+		int get_Nrows(){
+			return Nrows;
+		}
+		int get_Ncols(){
+			return Ncols;
+		}
+		int *operator[](int i){return &buf[i*Ncols];}
+	private:
+		int Nrows,Ncols;
+		int *buf;
+
+};
+
+class LCS {
+	public:
+		void text1_push_back(string&);
+		void text2_push_back(string&);
+		void compute_alignment();
+		void report_difference();
+
+	private:
+		void report_difference(int, int);
+		int m,n;
+		const int DELmove=1;
+		const int INSmove=2;
+		const int MATmove=4;
+		vector<int>trace;
+		vector<string> text1;
+		vector<string> text2;
+		matrix cost;
+		matrix link;
+		// support functions
+		// text1 buffer
+		// text2 buffer
+};
+void LCS::text1_push_back(string &name){
+	ifstream fin;
+	string info;
+	fin.open(name.c_str());
+	while(!fin.eof()){
+		getline(fin,info);
+		text1.push_back(info);
+	}
+
+}
+void LCS::text2_push_back(string &name){
+	ifstream fin;
+	string info;
+	fin.open(name.c_str());
+	while(!fin.eof()){
+		getline(fin,info);
+		text2.push_back(info);
+	}
+}
+void LCS::compute_alignment(){
+	text1.insert(text1.begin()," ");
+	text2.insert(text2.begin()," ");
+	m=text1.size();
+	n=text2.size();
+	cost.assign(m+1,n+1);
+	link.assign(m+1,n+1);
+	cost[0][0]=0;
+	link[0][0]=0;
+	for(int i=1;i<=m;i++){
+		cost[i][0]=cost[i-1][0]+1;
+		link[i][0]=DELmove;
+	}
+	for(int j=1;j<=n;j++){
+		cost[0][j]=cost[0][j-1]+1;
+		link[0][j]=INSmove;
+	}
+
+
+	for(int i=1;i<m;i++){
+		for(int j=1;j<n;j++){
+			if(text1[i]==text2[j]){
+				cost[i][j]=cost[i-1][j-1];
+				link[i][j]=MATmove;
+			}
+			else
+				cost[i][j]=INT_MAX;
+
+			int inscost = cost[i][j-1]+1;
+			if (inscost<cost[i][j]){
+				cost[i][j]=inscost;
+				link[i][j]=INSmove;
+			}
+
+			int delcost =cost[i-1][j]+1;
+			if (delcost<cost[i][j]){
+				cost[i][j]=delcost;
+				link[i][j]=DELmove;
+			}
+		}
+	}
+
+}
+void LCS::report_difference(){
+	int i=link.get_Nrows()-2;
+	int j=link.get_Ncols()-2;
+	report_difference(i,j);
+	int line1=0;
+	int line2=0;
+	int Ins=0;
+	int Del=0;
+
+	vector<int>::reverse_iterator it;
+	for(it=trace.rbegin();it!=trace.rend();it++){
+		if(*it==DELmove){
+			line1++;
+			Del++;
+			//	cout<<line1<<"d"<<line2<<"\n";
+		}
+		if(*it==INSmove){
+			line2++;
+			Ins++;
+			//	cout<<line1<<"a"<<line2<<"\n";
+		}
+		if(*it==MATmove){
+			line1=line1+1;
+			line2=line2+1;
+		if(Ins>0&&Del>0){
+			if(Ins>1)
+				cout<<line1-1<<"c"<<line2-Ins<<","<<line2-1<<"\n";
+			if(Del>1)
+				cout<<line1-Del<<","<<line1-1<<cout<<"c"<<line2-1<<"\n";
+			else
+				cout<<line1-Del<<line1-1<<"c"<<line2-Ins<<","<<line2-1<<"\n";
+			for(int a=line1-Del;a<=line1-1;a++){
+				cout<<"<"<<text1[a]<<"\n";
+			}
+			cout<<"---"<<endl;
+
+			for(int a=line2-Ins;a<=line2-1;a++){
+				cout<<">"<<text2[a]<<"\n";
+			}
+
+			Ins=0;
+			Del=0;
+		}
+		else if(Del==0&&Ins>0){
+			if(Ins>1){
+				cout<<line1-1<<"a"<<line2-Ins<<","<<line2-1<<"\n";
+				for(int a=line2-Ins;a<=line2-1;a++){
+					cout<<">"<<text2[a]<<"\n";
+				}
+			}
+			if(Ins==1){
+				cout<<line1-1<<"a"<<line2-1<<"\n";
+				cout<<">"<<text2[line2-1]<<"\n";
+				Ins=0;
+			}
+
+		}
+		else if(Ins==0&&Del>0){
+			if(Del>1){
+				cout<<line1-Del<<","<<line1-1<<"d"<<line2-1<<"\n";
+				for(int a=line1-Del;a<=line1-1;a++){
+					cout<<"<"<<text1[a]<<"\n";
+				}
+				Del=0;
+			}
+			if(Del==1){
+				cout<<line1-1<<"d"<<line2-1<<"\n";
+				cout<<"<"<<text1[line1-1]<<"\n";
+				Del=0;
+
+			}
+		}
+		//cout<<line1<<"m"<<line2<<"\n";
+	}
+}
+}
+void LCS::report_difference(int i,int j){
+	if(i==0&&j==0)
+		return;
+
+	if(link[i][j]==INSmove){
+		trace.push_back(INSmove);
+		report_difference(i,j-1);
+	}
+	if(link[i][j]==DELmove){
+		trace.push_back(DELmove);
+		report_difference(i-1,j);
+	}
+	if(link[i][j]==MATmove){
+		trace.push_back(MATmove);
+		report_difference(i-1,j-1);
+	}
+}
+int main(int argc, char *argv[])
+{
+	if(argc!=3){
+		cout<<"usage: ./diff6 file1 file2"<<endl;
+		return 0;
+	}
+	// check two input files are specified on command line
+	string a=argv[1];
+	string b=argv[2];
+	LCS lcs;  // instantiate your "lcs based diff" object
+	lcs.text1_push_back(a);
+	lcs.text2_push_back(b);
+	// read the text from file1 into the lcs.text1 buffer
+	// read the text from file2 into the lcs.text2 buffer
+
+	lcs.compute_alignment();
+	lcs.report_difference();
+}

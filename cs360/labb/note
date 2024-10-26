@@ -1,0 +1,36 @@
+global struct
+
+struct global{
+mutex
+Dllist hydrogen
+Dllist oxygen
+
+};
+struct atom{
+	int ID;
+	mutex
+	condition varible;
+	int h1,h2,o1
+}
+1. Can we bond
+	check dllist
+for hydrogen function:
+	lock
+	if(H==1, O==1){
+		get atom,pull off list
+		set parameter
+		unlock
+		signal
+		bound()
+	}
+for oxygen function
+	lock
+	if(H==2){
+
+	}
+2.If can't bond
+	put self on dllist
+	unlock global
+	lock self
+	cond wait
+	bound()

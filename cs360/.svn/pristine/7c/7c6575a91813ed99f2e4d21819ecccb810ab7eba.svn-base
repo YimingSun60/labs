@@ -1,0 +1,5 @@
+cc1: warning: /dev/null: not a directory [enabled by default]
+tf4.c:7:1: error: expected identifier or ‘(’ before numeric constant
+ 1 + 1 = 1;
+ ^
+Command failed.  Exiting

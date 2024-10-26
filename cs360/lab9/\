@@ -1,0 +1,175 @@
+#include <unistd.h>
+#include "dllist.h"
+#include "jrb.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include "sockettome.h"
+typedef struct room{
+	char *name;
+	int num_clients;
+	Dllist client;
+	Dllist messages;
+	pthread_mutex_t *lock; 
+	pthread_cond_t *cond1;
+}Room;
+
+typedef struct client{
+	char *name;
+	Room *ptr;
+	int fd;
+	FILE *read;
+	FILE *write;
+}Client;
+void client(Client *c){
+	char *message;
+	message = (char* )malloc(1000);
+	char *buffer;
+	buffer = (char* )malloc(1000);
+	while(fgets(message,1000,c->read)){
+		message[strlen(message-1)]=='\0';
+		sprintf(buffer,"%s: %s",c->name,message);
+		pthread_mutex_lock((c->ptr)->lock);
+		//sprintf
+		dll_append((c->ptr)->messages,new_jval_v(buffer));
+		pthread_cond_signal((c->ptr)->cond1);
+		pthread_mutex_unlock((c->ptr)->lock);
+		//printf("1");
+	}
+}
+void chatroom(Room *r){
+	char *message;
+	message = malloc(1000);
+	Dllist tmp, tmp2;
+	pthread_mutex_lock(r->lock);
+	//before wait, lock the room
+	//initially block the room thread
+	//send all message to client
+	while(1){
+		pthread_cond_wait(r->cond1,r->lock);
+		dll_traverse(tmp,r->client){
+			dll_traverse(tmp2,r->messages){
+				fputs(jval_v(tmp2->val),((Client*)jval_v(tmp->val))->write);
+				fflush(((Client*)jval_v(tmp->val))->write);
+			}
+
+		}
+		free_dllist(r->messages);
+		r->messages = new_dllist();
+	}
+}
+int main(int argc,char **argv){
+	int i=0;
+	int id_count = 0;
+	int port,sock;
+	FILE *fsock1;
+	FILE *fsock2;
+	JRB t;
+	JRB jtmp;
+	t = make_jrb();
+	int fd;
+	Room *r;
+	Client *c;
+	char *name;
+	char *buffer;
+	char *check;
+	buffer = (char*)malloc(1000);
+	//launch rooms
+
+	for(i=2;i<argc;i++){
+
+		pthread_t id;
+		r = (Room*)malloc(sizeof(Room));
+		r->client = new_dllist();
+		r->messages = new_dllist();
+		r->name = strdup(argv[i]);
+		r->lock = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
+		pthread_mutex_init(r->lock,NULL);
+		r->cond1 = (pthread_cond_t*)malloc(sizeof(pthread_cond_t));
+		pthread_cond_init(r->cond1,NULL);
+		jrb_insert_str(t,r->name,new_jval_v((void*)r));
+
+		pthread_create(&id,NULL,chatroom,r);
+	}
+
+	port = atoi(argv[1]);
+
+	if(port<8000){
+		fprintf(stderr,"usage: serval port\n");
+		exit(1);
+	}
+	//serve socket
+	//launch client thread
+
+	sock = serve_socket(port);
+	while(fd = accept_connection(sock)){
+		char *client_name;
+		char *room_name;
+		client_name = (char*)malloc(100);
+		room_name = (char*)malloc(100);
+
+		pthread_t id2;
+		fsock1 = fdopen(fd,"r");
+		fsock2 = fdopen(fd,"w");
+		c = (Client*)malloc(sizeof(Client));	
+		c->read = fsock1;
+		c->write = fsock2;
+
+		fputs("Chat Room:\n",c->write);
+		fflush(c->write);
+
+		jrb_traverse(jtmp,t){
+			fputs(((Room*)jtmp->val.v)->name,c->write);
+			fflush(c->write);
+			fputs("\n",c->write);
+			fflush(c->write);
+		}
+
+		fputs("Enter your chat name (no spaces):\n",c->write);
+		fflush(c->write);
+		fgets(client_name,100,c->read);	
+		while(strcmp(client_name,"\n")==0){
+			fputs("Enter your chat name (no spaces):\n",c->write);
+			fflush(c->write);
+			fgets(client_name,100,c->read);	
+		}
+		fflush(c->read);
+		client_name[strlen(client_name)-1]='\0';
+		c->name = client_name;
+
+		fputs("Enter chat room:\n",c->write);
+		fflush(c->write);
+
+		fgets(room_name,100,c->read);
+		fflush(c->read);
+
+		room_name[strlen(room_name)-1]='\0';
+
+		jtmp = jrb_find_str(t,room_name);
+		while(jtmp==NULL){
+			fputs("no chat room\n",c->write);
+			fflush(c->write);
+			fputs("Enter chat room:\n",c->write);
+			fflush(c->write);
+
+			fgets(room_name,100,c->read);
+			fflush(c->read);
+			room_name[strlen(room_name)-1]='\0';
+			jtmp = jrb_find_str(t,room_name);
+
+		}
+		c->ptr = jtmp->val.v;
+		pthread_mutex_lock((c->ptr)->lock);
+		dll_append((c->ptr)->client,new_jval_v(c));
+		pthread_mutex_unlock((c->ptr)->lock);
+		fputs(buffer,c->write);
+		fflush(c->write);
+
+		sprintf(buffer,"%s has joined\n",c->name);
+		//using mutex lock the room first
+		//		fgets(message,sizeof(message),c->read);
+		pthread_create(&id2,NULL,client,c);
+
+
+	}		
+}

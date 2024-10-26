@@ -1,0 +1,34 @@
+#CS 360 Lab 1 Makefile
+
+CC = gcc 
+
+INCLUDES = -I/home/plank/cs360/include
+
+CFLAGS = -g $(INCLUDES)
+
+LIBDIR = /home/plank/cs360/objs
+
+LIBS = $(LIBDIR)/libfdr.a 
+
+EXECUTABLES = l2p1 l2p2 l2p3 data_uncompress
+
+all: $(EXECUTABLES)
+
+.SUFFIXES: .c .o
+.c.o:
+	$(CC) $(CFLAGS) -c $*.c
+
+l2p1: l2p1.o
+	$(CC) $(CFLAGS) -o l2p1 l2p1.o $(LIBS)
+l2p2: l2p2.o	
+	$(CC) $(CFLAGS) -o l2p2 l2p2.o $(LIBS)
+l2p3: l2p3.o
+	$(CC) $(CFLAGS) -o l2p3 l2p3.o $(LIBS)
+data_uncompress: data_uncompress.o
+	$(CC) $(CFLAGS) -o data_uncompress data_uncompress.o $(LIBS)
+#make clean will rid your directory of the executable,
+#object files, and any core dumps you've caused
+clean:
+	rm core $(EXECUTABLES) *.o
+
+

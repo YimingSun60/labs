@@ -1,0 +1,179 @@
+//didn't fully complete this part
+#include<stdlib.h>
+#include<fcntl.h>
+#include<stdio.h>
+#include<string.h>
+#include<math.h>
+#include "fields.h"
+#include "jrb.h"
+#include "dllist.h"
+typedef struct info info;
+struct info{
+	unsigned char IP[4];
+	Dllist names;
+};
+
+
+int main(int argc, char **argv){
+	JRB J, R;
+	long buffer = 350000; 
+	int fp;
+	char input[100], *outname,*c;
+	c=malloc(buffer*sizeof(char));
+	info *f;
+	Dllist names, t;
+	char n[1];
+	int i,count;
+	int temp = 0;
+	int time = 0;
+	int p = 0;
+	int com ;
+	int a = 0;
+	int addnum=0;
+	int timenum=0;
+	int namenum=0;
+	f = (info*)malloc(sizeof(struct info));
+	unsigned char ip[4],num[4],namebuf[1],addr[4];
+	char name[100],abname[100],localname[100];
+	int tmp;
+	int test_ar[4];
+	int  byte_read;
+	J=make_jrb();
+	//	printf("asda");
+	//	scanf("%s",&input);
+	fp = open("converted",O_RDONLY);
+	
+	byte_read=read(fp,c,buffer);
+
+	for(a=0;a<byte_read;a++ ){
+	//	f = (info*)malloc(sizeof(struct info));
+		if(addnum<4){
+			ip[addnum] = c[a];
+			addnum++;
+			if(addnum==4)
+				addnum = 6;
+		}
+		memcpy(f->IP,ip,4);
+//printf("%d\n",addr);
+		//read(fp,f->IP,4);
+		//printf("%d\n",byte_read);
+		//	printf(" %s\n",ip);
+		/*	strcpy(ip,ipbuf);
+			for(p=0;p<4;p++){
+			f->IP[p]=ip[p];
+			}*/
+				printf("%d.%d.%d.%d\n",ip[0],ip[1],ip[2],ip[3]);
+
+		//byte_read=read(fp,num,4);
+		//printf("%d\n",byte_read);
+		if(addnum == 4 && timenum < 4){
+			if(timenum == 0){
+				temp=num[0]*pow(2,24);
+				time=time+temp;
+				timenum++;
+			}
+			if(timenum == 1){
+				temp=num[1]*pow(2,16);
+				time=time+temp;
+				timenum++;
+			}
+			if(timenum == 2){
+				temp=num[2]*pow(2,8);
+				time=time+temp;
+				timenum++;
+			}
+			if(timenum == 3){
+				temp=num[3];
+				time=time+temp;
+				timenum++;
+				if(timenum == 4)
+					timenum = 7;
+			}
+		}
+		//	printf(" %d\n",time);
+		//		exit(1);
+		int z=0;
+		int j=0;
+		count = time;
+//				printf ("%d\n",count);
+		strcpy(abname,"");
+		strcpy(localname,"");
+		//strcpy(name,"");
+		f->names=new_dllist();
+		//		printf("1");
+		if(addnum==4&&timenum==4){
+		while(count >= 1){
+			z++;
+			//			printf("1");
+			localname[namenum]=c[i];
+			//	byte_read=read(fp,namebuf,1);
+			//	printf("%d",byte_read);
+			//strcat(localname,namebuf);
+
+			if(namebuf[0]=='.'&&j==0){
+				for(i=0;i<z-1;i++){				
+					abname[i]=localname[i];
+				}
+				//				strcpy(abname,localname);
+				//f->names=new_dllist();
+				dll_append(f->names,new_jval_s(strdup(abname)));
+				//dll_prepend(f->names,new_jval_s(strdup(localname)));
+				//	strcpy(f->IP,ipbuf);
+				jrb_insert_str(J,strdup(abname),new_jval_v(f));
+				j=1;
+			//		printf("%d %s\n",count,abname);
+				//	printf("%s\n",localname);
+				memset(abname,0,100);
+			}
+			//			memset(abname,0,100);
+			if(namebuf[0]=='\0'){
+				//strcpy(localname,name);
+				//f->names=new_dllist();
+				dll_prepend(f->names,new_jval_s(strdup(localname)));
+				//strcpy(f->IP,ipbuf);
+				jrb_insert_str(J,strdup(localname),new_jval_v(f));
+				memset(localname,0,100);
+				//	j=0;
+				count--;
+				//		printf("%s\n",abname);
+				//	printf("%s\n",localname);
+			}
+			//	printf("%s\n",abname);
+			//	printf("%s\n",localname);
+		}
+//		printf("%d.%d.%d.%d\n",ip[0],ip[1],ip[2],ip[3]);
+
+		}
+		if(addnum==4)
+			addnum==7;
+		if(timenum==4)
+			timenum==7;
+		//		count=0;
+		temp=0;
+		time=0;
+		//	printf("%s\n",abname);
+		//	printf("%s\n",localname);
+	}	
+	close(fp);
+	printf("Hosts all read in\n");
+	while(1){
+		printf("Enter host name: ");
+		fscanf(stdin, "%s", &input);
+		R=jrb_find_str(J,input);
+		//			printf("%s",R);
+		if(R==NULL){
+			printf("no key %s\n", strdup(input));
+		}
+		if(R != NULL){
+			f=(info*)R->val.v;
+			printf("%d.%d.%d.%d ", f->IP[0], f->IP[1], f->IP[2], f->IP[3]);
+			dll_traverse(t, f->names){
+				outname=t->val.s;
+				printf("%s ",outname);
+			}
+			printf("\n");
+		}
+
+	}
+	return 0;
+}

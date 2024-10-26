@@ -1,0 +1,690 @@
+<<<<<<< .mine
+#include <string.h>
+#include <stdlib.h>
+#include "jrb.h"
+#include "fields.h"
+#include "dllist.h"
+
+typedef struct Person Person;
+
+struct Person {
+	char *name;
+	char *sex;
+	Person *f;
+	Person *m;
+	int visited;
+	int print;
+	Dllist children;
+};
+//The function to add person to RB tree
+//I allocate & free memory and initialize the structure here, so I don't have to do 
+//the repeat work in my main
+Person* addPerson(JRB tree, char *name) {
+	Person *P = (Person *)malloc(sizeof(struct Person));
+	P->name = strdup(name);
+	P->sex = strdup("Unknown");
+	P->f = NULL;
+	P->m = NULL;
+	P->visited = 0;
+	P->print = 0;
+	P->children = new_dllist();
+	jrb_insert_str(tree, P->name, new_jval_v(P));
+	return P;
+	free(P);
+	free(P->name);
+}
+//use depth-first search to check the cycle
+int is_descendant(Person *p) {
+	Dllist ptr;
+	if (p->visited == 1) return 0;
+
+	if (p->visited == 2) return 1;
+
+	p->visited = 2;
+
+	if (!dll_empty(p->children)) {
+		dll_traverse(ptr, p -> children) {
+			if (is_descendant(ptr->val.v)) return 1;
+		}
+	}
+	p->visited = 1;
+	return 0;
+}
+//use depth-first search either
+//print out the person from a double linked list
+void print(Dllist l, Person *S, Person* P) {
+	Dllist node;
+	node = dll_first(l);
+	P = (Person *)node->val.v;
+	dll_delete_node(dll_first(l));
+	if (P->print == 0) {
+		if ((P->m != NULL && P->f != NULL) && (P->f->print == 1 && P->m->print == 1) || (P->m != NULL))
+		{
+			P->print = 1;
+			printf("%s\n", P->name);
+
+			if (strcmp(P->sex, "Unknown") == 0) {
+				printf("  Sex: Unknown\n");
+			}
+			else {
+				printf("  Sex: %s\n", (strcmp(P->sex, "M") == 0) ? "Male" : "Female");
+			}
+
+			if (P->f != NULL) {
+				printf(" Father: %s\n", P->f->name);
+			}
+			else {
+				printf(" Father: %s\n", "Unknown");
+			}
+
+			if (P->m != NULL) {
+				printf(" Mother: %s\n", P->m->name);
+			}
+			else {
+				printf(" Mother: %s\n", "Unknown");
+			}
+
+			if (dll_empty(P->children)) {
+				printf("  Children: None\n");
+			}
+			else {
+				printf("  Children:\n");
+				dll_traverse(node, P -> children) {
+					S = (Person *)node->val.v;
+					printf("     %s\n", S->name);
+					dll_append(l, new_jval_v(S));
+				}
+			}
+			printf("\n");
+		}
+	}
+
+}
+
+main(int argc, char **argv) {
+	Person *p, *f, *m, *chi, *r;
+	JRB people, temp;
+	int i;
+	IS is;
+	char *name;
+	char *tempname;
+	char *father;
+	char *mother;
+	char *child;
+	char *type;
+	int line = 0;
+	Dllist toprint, ptr;
+	people = make_jrb();
+	toprint = new_dllist();
+	is = new_inputstruct(argv[1]);
+	if (is == NULL) { perror(argv[1]); exit(1); }
+	//if file opened and is not the empty file
+	//read it line by line
+	while (get_line(is) >= 0) {
+		line++;
+		//copy person's full name
+		//by using a loop, the loop ends
+		//at the end of line
+
+		//detect the type
+		if (is->NF >= 1) {
+			type = strdup(is->fields[0]);
+			if (strcmp("PERSON", type) == 0) {
+				name = strdup(is->fields[1]);
+				if (is->NF > 2)
+				{
+					for (i = 2; i < is->NF; i++) {
+						tempname = strdup(is->fields[i]);
+						strcat(name, " ");
+						strcat(name, tempname);
+					}
+				}
+				//find if person is in RB tree
+				//if not, add the person to RB tree
+				temp = jrb_find_str(people, name);
+
+				if (temp == NULL) {
+					p = addPerson(people, name);
+				}
+				else {
+					p = (Person *)temp->val.v;
+				}
+			}
+			if (strcmp(type, "FATHER") == 0) {
+				father = strdup(is->fields[1]);
+				if (is->NF > 2)
+				{
+					for (i = 2; i < is->NF; i++) {
+						tempname = strdup(is->fields[i]);
+						strcat(father, " ");
+						strcat(father, tempname);
+					}
+				}
+
+				temp = jrb_find_str(people, father);
+
+				if (temp == NULL) {
+					f = addPerson(people, father);
+					f->sex = "M";
+					//check if there has child with two father
+					if (p->f != NULL) {
+						fprintf(stderr, "Bad input -- child with two fathers on line %d\n", line);
+						exit(1);
+					}
+					p->f = f;
+					dll_append(f->children, new_jval_v(p));
+				}
+				else {
+					f = (Person *)temp->val.v;
+					//check if father is female
+					//if mismatch sex, error
+					if (strcmp(f->sex, "F") == 0) {
+						fprintf(stderr, "Bad input - sex mismatch on line %d\n", line);
+						exit(1);
+					}
+					f->sex = "M";
+					if (p->f != NULL) {
+						fprintf(stderr, "Bad input -- child with two fathers on line %d\n", line);
+						exit(1);
+					}
+					p->f = f;
+					dll_append(f->children, new_jval_v(p));
+				}
+				//printf("%s\n",father);
+
+			}
+			if (strcmp(type, "MOTHER") == 0) {
+
+				mother = strdup(is->fields[1]);
+				if (is->NF > 2)
+				{
+					mother = strdup(is->fields[1]);
+					for (i = 2; i < is->NF; i++) {
+						tempname = strdup(is->fields[i]);
+						strcat(mother, " ");
+						strcat(mother, tempname);
+					}
+				}
+
+				temp = jrb_find_str(people, mother);
+
+				if (temp == NULL) {
+					m = addPerson(people, mother);
+					m->sex = "F";
+					if (p->m != NULL) {
+						fprintf(stderr, "Bad input -- child with two mothers on line %d\n", line);
+						exit(1);
+					}
+					p->m = m;
+					dll_append(m->children, new_jval_v(p));
+				}
+				else {
+					m = (Person *)temp->val.v;
+					if (strcmp(m->sex, "M") == 0) {
+						fprintf(stderr, "Bad input - sex mismatch on line %d\n", line);
+						exit(1);
+					}
+					m->sex = "F";
+					if (p->m != NULL) {
+						fprintf(stderr, "Bad input -- child with two mothers on line %d\n", line);
+						exit(1);
+					}
+					p->m = m;
+					dll_append(m->children, new_jval_v(p));
+				}
+			}
+			if (strcmp(type, "FATHER_OF") == 0) {
+				child = strdup(is->fields[1]);
+				if (is->NF > 2)
+				{
+					for (i = 2; i < is->NF; i++) {
+						tempname = strdup(is->fields[i]);
+						strcat(child, " ");
+						strcat(child, tempname);
+					}
+				}
+
+				temp = jrb_find_str(people, child);
+
+				if (temp == NULL) {
+					chi = addPerson(people, child);
+					if (strcmp(p->sex, "Unknown") != 0) {
+						if (strcmp(p->sex, "M") != 0) {
+							fprintf(stderr, "Bad input - sex mismatch on line %d\n", line);
+							exit(1);
+						}
+					}
+					p->sex = "M";
+					chi->f = p;
+					dll_append(p->children, new_jval_v(chi));
+				}
+				else {
+					chi = (Person *)temp->val.v;
+					if (strcmp(p->sex, "Unknown") != 0) {
+						if (strcmp(p->sex, "M") != 0) {
+							fprintf(stderr, "Bad input - sex mismatch on line %d\n", line);
+							exit(1);
+						}
+					}
+					p->sex = "M";
+					chi->f = p;
+					dll_append(p->children, new_jval_v(chi));
+				}
+			}
+			if (strcmp(type, "MOTHER_OF") == 0) {
+				child = strdup(is->fields[1]);
+				if (is->NF > 2)
+				{
+					for (i = 2; i < is->NF; i++) {
+						tempname = strdup(is->fields[i]);
+						strcat(child, " ");
+						strcat(child, tempname);
+					}
+				}
+
+
+				temp = jrb_find_str(people, child);
+
+				if (temp == NULL) {
+					chi = addPerson(people, child);
+					if (strcmp(p->sex, "Unknown") != 0) {
+						if (strcmp(p->sex, "F") != 0) {
+							fprintf(stderr, "Bad input - sex mismatch on line %d\n", line);
+							exit(1);
+						}
+					}
+					p->sex = "F";
+					chi->m = p;
+					dll_append(p->children, new_jval_v(chi));
+				}
+				else {
+					chi = (Person *)temp->val.v;
+					if (strcmp(p->sex, "Unknown") != 0) {
+						if (strcmp(p->sex, "F") != 0) {
+							fprintf(stderr, "Bad input - sex mismatch on line %d\n", line);
+							exit(1);
+						}
+					}
+					p->sex = "F";
+					chi->m = p;
+					dll_append(p->children, new_jval_v(chi));
+				}
+			}
+			if (strcmp(type, "SEX") == 0) {
+				if (strcmp(p->sex, "Unknown") != 0) {
+					if (strcmp(p->sex, strdup(is->fields[1])) != 0) {
+						fprintf(stderr, "Bad input - sex mismatch on line %d\n", line);
+						exit(1);
+					}
+				}
+				p->sex = strdup(is->fields[1]);
+
+			}
+
+		}
+
+	}
+
+	//In this loop, add person to the double linked list
+	//see if there have cycle
+	jrb_traverse(temp, people) {
+		p = (Person *)temp->val.v;
+		if (p->f == NULL && p->m == NULL) {
+			dll_append(toprint, new_jval_v(p));
+		}
+		if (is_descendant(p)) {
+			fprintf(stderr, "Bad input -- cycle in specification\n");
+			exit(1);
+		}
+	}
+	//call print function here 
+	while (!dll_empty(toprint)) {
+		print(toprint, r, p);
+	}
+	//free the IS
+	jettison_inputstruct(is);
+}
+=======
+#include <string.h>
+#include <stdlib.h>
+#include "jrb.h"
+#include "fields.h"
+#include "dllist.h"
+
+typedef struct Person Person;
+
+struct Person{
+	char *name;
+	char *sex;
+	Person *f;
+	Person *m;
+	int visited;  
+	int print;  
+	Dllist children;
+};
+//The function to add person to RB tree
+//I allocate & free memory and initialize the structure here, so I don't have to do 
+//the repeat work in my main
+Person* addPerson(JRB tree, char *name){
+	Person *P = (Person *) malloc(sizeof(struct Person));
+	P -> name = strdup(name);
+	P -> sex = strdup("Unknown");
+	P -> f = NULL;
+	P -> m = NULL;
+	P -> visited = 0;
+	P -> print = 0;
+	P -> children = new_dllist();
+	jrb_insert_str(tree, P -> name, new_jval_v(P));
+	return P;
+	free(P);
+	free(P->name);
+}
+//use depth-first search to check the cycle
+int is_descendant(Person *p){  
+	Dllist ptr;
+	if(p -> visited == 1) return 0;
+
+	if(p -> visited == 2) return 1;
+
+	p -> visited = 2;
+
+	if(!dll_empty(p -> children)){  
+		dll_traverse(ptr, p -> children){
+			if(is_descendant(ptr -> val.v)) return 1;
+		}
+	}
+	p -> visited = 1;
+	return 0;
+}
+//use depth-first search either
+//print out the person from a double linked list
+void print(Dllist l,Person *S ,Person* P){
+	Dllist node;
+	node = dll_first(l);
+	P = (Person *) node -> val.v;
+	dll_delete_node(dll_first(l));
+	if(P -> print == 0){
+		if((P -> f == NULL && P -> m == NULL) || 
+				(P -> m != NULL) && (P -> f == NULL && P -> m -> print == 1) ||	(P -> f != NULL) && (P -> m == NULL && P -> f -> print == 1) || 
+				(P -> m != NULL && P -> f != NULL) && (P -> f -> print == 1 && P -> m -> print == 1)){
+			P -> print = 1;
+			printf("%s\n", P -> name);
+
+			if(strcmp(P -> sex, "Unknown") == 0){
+				printf("  Sex: Unknown\n");
+			}else{
+				printf("  Sex: %s\n", (strcmp(P -> sex, "M") == 0) ? "Male" : "Female");
+			}
+
+			if(P -> f != NULL){
+				printf(" Father: %s\n", P -> f -> name);
+			}
+			else{
+				printf(" Father: %s\n", "Unknown");
+			}
+
+			if(P -> m != NULL){
+				printf(" Mother: %s\n", P -> m -> name);
+			}
+			else{
+				printf(" Mother: %s\n", "Unknown");
+			}
+
+			if(dll_empty(P -> children)){
+				printf("  Children: None\n");
+			}
+			else{
+				printf("  Children:\n");
+				dll_traverse(node, P -> children){
+					S = (Person *) node -> val.v;
+					printf("     %s\n", S -> name);
+					dll_append(l, new_jval_v(S));
+				}
+			}
+			printf("\n");
+		}
+	}
+
+}
+
+main(int argc, char **argv){
+	Person *p, *f, *m, *chi, *r;
+	JRB people, temp;
+	int i;
+	IS is;
+	char *name;
+	char *tempname;
+	char *father;
+	char *mother;
+	char *child;
+	char *type;
+	int line = 0;
+	Dllist toprint, ptr;
+	people = make_jrb();
+	toprint = new_dllist();  
+	is = new_inputstruct(argv[1]);
+	if(is == NULL) { perror(argv[1]); exit(1); }
+	//if file opened and is not the empty file
+	//read it line by line
+	while(get_line(is) >= 0 ){
+		line++;
+		//copy person's full name
+		//by using a loop, the loop ends
+		//at the end of line
+
+		//detect the type
+		if(is->NF>=1){		
+			type=strdup(is->fields[0]);
+			if(strcmp("PERSON", type) == 0){  
+				name=strdup(is->fields[1]);
+				if(is -> NF > 2)
+				{
+					for(i = 2; i < is -> NF; i++){
+						tempname=strdup(is->fields[i]);
+						strcat(name, " ");
+						strcat(name, tempname);
+					}
+				}
+				//find if person is in RB tree
+				//if not, add the person to RB tree
+				temp = jrb_find_str(people, name);  
+
+				if(temp == NULL){  
+					p = addPerson(people, name);
+				}
+				else{  
+					p = (Person *) temp -> val.v;
+				}
+			}
+			if(strcmp(type, "FATHER") == 0){  
+				father=strdup(is->fields[1]);
+				if(is -> NF > 2)
+				{
+					for(i = 2; i < is -> NF; i++){
+						tempname=strdup(is->fields[i]);
+						strcat(father, " ");
+						strcat(father, tempname);
+					}
+				}
+
+				temp = jrb_find_str(people, father);
+
+				if(temp == NULL){  
+					f = addPerson(people, father);  
+					f -> sex = "M";
+					//check if there has child with two father
+					if(p -> f != NULL){  
+						fprintf(stderr, "Bad input -- child with two fathers on line %d\n",line);
+						exit(1);
+					}
+					p -> f = f;
+					dll_append(f -> children, new_jval_v(p));  
+				}
+				else{
+					f = (Person *) temp -> val.v;
+					//check if father is female
+					//if mismatch sex, error
+					if(strcmp(f -> sex, "F") == 0) {  
+						fprintf(stderr, "Bad input - sex mismatch on line %d\n",line);
+						exit(1);
+					}
+					f -> sex = "M";
+					if(p -> f != NULL){  
+						fprintf(stderr, "Bad input -- child with two fathers on line %d\n",line);
+						exit(1);
+					}
+					p -> f = f;
+					dll_append(f -> children, new_jval_v(p));
+				}
+				//printf("%s\n",father);
+
+			}
+			if(strcmp(type, "MOTHER") == 0){  
+
+				mother=strdup(is->fields[1]);
+				if(is -> NF > 2)
+				{
+					mother=strdup(is->fields[1]);
+					for(i = 2; i < is -> NF; i++){
+						tempname=strdup(is->fields[i]);
+						strcat(mother, " ");
+						strcat(mother, tempname);
+					}
+				}
+
+				temp = jrb_find_str(people, mother);
+
+				if(temp == NULL){
+					m = addPerson(people, mother);
+					m -> sex = "F";
+					if(p -> m != NULL){
+						fprintf(stderr, "Bad input -- child with two mothers on line %d\n",line);
+						exit(1);
+					}
+					p -> m = m;
+					dll_append(m -> children, new_jval_v(p));
+				}else{
+					m = (Person *) temp -> val.v;
+					if(strcmp(m -> sex, "M") == 0){
+						fprintf(stderr, "Bad input - sex mismatch on line %d\n",line);
+						exit(1);
+					}
+					m -> sex = "F";
+					if(p -> m != NULL){
+						fprintf(stderr, "Bad input -- child with two mothers on line %d\n",line);
+						exit(1);
+					}
+					p -> m = m;
+					dll_append(m -> children, new_jval_v(p));
+				}
+			}
+			if(strcmp(type, "FATHER_OF") == 0){  
+				child=strdup(is->fields[1]);
+				if(is -> NF > 2)
+				{
+					for(i = 2; i < is -> NF; i++){
+						tempname=strdup(is->fields[i]);
+						strcat(child, " ");
+						strcat(child, tempname);
+					}
+				}
+
+				temp =	jrb_find_str(people, child);		
+
+				if(temp == NULL){  
+					chi = addPerson(people, child);
+					if(strcmp(p -> sex, "Unknown") != 0){
+						if(strcmp(p -> sex, "M") != 0){
+							fprintf(stderr, "Bad input - sex mismatch on line %d\n",line);
+							exit(1);
+						}
+					}
+					p -> sex = "M";
+					chi -> f = p;
+					dll_append(p -> children, new_jval_v(chi));
+				}else{  
+					chi = (Person *) temp -> val.v;
+					if(strcmp(p -> sex, "Unknown") != 0){
+						if(strcmp(p -> sex, "M") != 0){
+							fprintf(stderr, "Bad input - sex mismatch on line %d\n",line);
+							exit(1);
+						}
+					}
+					p -> sex = "M";
+					chi -> f = p;
+					dll_append(p -> children, new_jval_v(chi));
+				}
+			}
+			if(strcmp(type, "MOTHER_OF") == 0){  
+				child=strdup(is->fields[1]);
+				if(is -> NF > 2)
+				{
+					for(i = 2; i < is -> NF; i++){
+						tempname=strdup(is->fields[i]);
+						strcat(child, " ");
+						strcat(child, tempname);
+					}
+				}
+
+
+				temp = jrb_find_str(people, child);
+
+				if(temp == NULL){
+					chi = addPerson(people, child);
+					if(strcmp(p -> sex, "Unknown") != 0){
+						if(strcmp(p -> sex, "F") != 0){
+							fprintf(stderr, "Bad input - sex mismatch on line %d\n",line);
+							exit(1);
+						}
+					}
+					p -> sex = "F";
+					chi -> m = p;
+					dll_append(p -> children, new_jval_v(chi));
+				}else{
+					chi = (Person *) temp -> val.v;
+					if(strcmp(p -> sex, "Unknown") != 0){
+						if(strcmp(p -> sex, "F") != 0){
+							fprintf(stderr, "Bad input - sex mismatch on line %d\n",line);
+							exit(1);
+						}
+					}
+					p -> sex = "F";
+					chi -> m = p;
+					dll_append(p -> children, new_jval_v(chi));
+				}
+			}
+			if(strcmp(type, "SEX") == 0){ 
+				if(strcmp(p->sex, "Unknown") != 0){  
+					if(strcmp(p -> sex, strdup(is -> fields[1])) != 0){
+						fprintf(stderr, "Bad input - sex mismatch on line %d\n",line);
+						exit(1);
+					}
+				}
+				p -> sex = strdup(is -> fields[1]);
+
+			}
+
+		}
+
+	}
+
+	//In this loop, add person to the double linked list
+	//see if there have cycle
+	jrb_traverse(temp, people){  
+		p = (Person *) temp -> val.v;
+		if(p->f==NULL&&p->m==NULL){
+			dll_append(toprint, new_jval_v(p));
+		}
+		if(is_descendant(p)){
+			fprintf(stderr, "Bad input -- cycle in specification\n");
+			exit(1);
+		}
+	}
+	//call print function here 
+	while(!dll_empty(toprint)){  
+		print(toprint,r,p);
+	}
+	//free the IS
+	jettison_inputstruct(is);
+}
+>>>>>>> .r686

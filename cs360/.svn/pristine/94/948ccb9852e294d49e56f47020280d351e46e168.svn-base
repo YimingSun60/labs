@@ -1,0 +1,4 @@
+tf4.c:8:31: error: ‘fred’ undeclared here (not in a function)
+ static int GLOBALS_ARE_EVIL = fred;
+                               ^
+Command failed.  Exiting

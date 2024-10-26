@@ -1,0 +1,143 @@
+//Yiming Sun
+
+//If you want check the IP which have multiple local name (like diskfarm),
+//you should add dot after the name (diskfarm.)
+#include<stdlib.h>
+#include<stdio.h>
+#include<string.h>
+#include<math.h>
+#include "fields.h"
+#include "jrb.h"
+#include "dllist.h"
+typedef struct info info;
+struct info{
+	unsigned char IP[4];
+	Dllist names;
+};
+
+
+int main(int argc, char **argv){
+	JRB J, R;
+	FILE *fp;
+	char input[100], *outname;
+	info *f;
+	Dllist names, t;
+	char n[1];
+	int i,count;
+	int temp = 0;
+	int time = 0;
+	int p = 0;
+	int com ;
+	int a = 0;
+	f = (info*)malloc(sizeof(struct info));
+	unsigned char ipbuf[4],num[4],namebuf[1],addr[4];
+	char name[100],abname[100],localname[100];
+	int tmp;
+	int test_ar[4];
+	size_t byte_read;
+	J=make_jrb();
+	//	printf("asda");
+	//	scanf("%s",&input);
+	fp = fopen("converted","rb");
+
+
+	//loop stop when it reach the end
+	while(!feof(fp)){
+		f = (info*)malloc(sizeof(struct info));
+	//read first four bytes as IP address, store it to struct	
+		byte_read=fread(f->IP,4,1,fp);
+		
+
+	//read next 4 bytes as number of names
+	//use bitwise operation 
+		byte_read=fread(num,1,4,fp);
+		//printf("%d\n",byte_read);
+		temp=num[0]*pow(2,24);
+		time=time+temp;
+		temp=num[1]*pow(2,16);
+		time=time+temp;
+		temp=num[2]*pow(2,8);
+		time=time+temp;
+		temp=num[3];
+		time=time+temp;
+		//	printf(" %d\n",time);
+		//		exit(1);
+		int z=0;
+		int j=0;
+		count = time;
+//				printf ("%d\n",count);
+		strcpy(abname,"");
+		strcpy(localname,"");
+		//strcpy(name,"");
+		f->names=new_dllist();
+		//		printf("1");
+		//loop end when it reaches end of line
+		while(count >= 1){
+			z++;
+			//			printf("1");
+			byte_read=fread(namebuf,1,1,fp);
+			//	printf("%d",byte_read);
+			strcat(localname,namebuf);
+			//extract the prefix of absolute name
+			if(namebuf[0]=='.'&&j==0){
+				for(i=0;i<z-1;i++){				
+					abname[i]=localname[i];
+				}
+				//				strcpy(abname,localname);
+				//f->names=new_dllist();
+				dll_append(f->names,new_jval_s(strdup(abname)));
+				//	strcpy(f->IP,ipbuf);
+				jrb_insert_str(J,strdup(abname),new_jval_v(f));
+				j=1;
+//				printf("%d %s\n",count,abname);
+//				printf("%s\n",localname);
+				memset(abname,0,100);
+			}
+			//after read a full name, count minus one, so it can read the next name at the
+			//same line
+			if(namebuf[0]=='\0'){
+				//strcpy(localname,name);
+				//f->names=new_dllist();
+				dll_prepend(f->names,new_jval_s(strdup(localname)));
+				//strcpy(f->IP,ipbuf);
+				jrb_insert_str(J,strdup(localname),new_jval_v(f));
+				memset(localname,0,100);
+			//	j=0;
+				count--;
+				//		printf("%s\n",abname);
+				//	printf("%s\n",localname);
+			}
+			//	printf("%s\n",abname);
+			//	printf("%s\n",localname);
+		}
+		//		count=0;
+		temp=0;
+		time=0;
+		//	printf("%s\n",abname);
+		//	printf("%s\n",localname);
+	}	
+	fclose(fp);
+	//read the input and scan the RB tree
+	//output the result.
+	printf("Hosts all read in\n");
+	while(1){
+		printf("Enter host name: ");
+		fscanf(stdin, "%s", &input);
+		R=jrb_find_str(J,input);
+		//			printf("%s",R);
+		if(R==NULL){
+			printf("no key %s\n", strdup(input));
+		}
+		if(R != NULL){
+			f=(info*)R->val.v;
+			printf("%d.%d.%d.%d ", f->IP[0], f->IP[1], f->IP[2], f->IP[3]);
+			dll_traverse(t, f->names){
+				outname=t->val.s;
+				printf("%s ",outname);
+			}
+			printf("\n");
+		}
+
+	}
+	return 0;
+}
