@@ -1,0 +1,26 @@
+#include <iostream>
+#include <cstdlib>
+#include <cmath>
+using namespace std;
+int factorial(int &number){
+int i=1;
+int temp=1;
+i++;
+
+
+if(i<number){
+factorial(number);
+}
+
+return temp;
+}
+
+int main(int argc, char*argv[]){
+	int n=atoi(argv[1]);
+	int factorial_n=factorial(n);
+	cout<<"factorial="<<factorial_n<<"\n";
+}
+//ns pxm buf nz nfubm xpsn
+//gmff up nf sfnpuf fmg
+//zp cbobob cpz
+//nbshf mfut opsbi tff tbsbit ufmfhsbn
