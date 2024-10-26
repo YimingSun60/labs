@@ -1,4 +1,0 @@
-*.c filter=lfs diff=lfs merge=lfs -text
-*.cpp filter=lfs diff=lfs merge=lfs -text
-*.o filter=lfs diff=lfs merge=lfs -text
-*/Makefile filter=lfs diff=lfs merge=lfs -text
